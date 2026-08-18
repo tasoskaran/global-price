@@ -1,6 +1,5 @@
 import streamlit as st
 import urllib.parse
-import requests
 
 # 1. ΡΥΘΜΙΣΗ ΣΕΛΙΔΑΣ
 st.set_page_config(page_title="Global Price & Duty Terminal", page_icon="⚡", layout="wide")
@@ -46,9 +45,6 @@ st.markdown("""
 st.title("⚡ GLOBAL PRICE & DUTY TERMINAL")
 st.caption("SYSTEM STATUS: ONLINE // ENTER SEARCH PARAMETERS")
 
-# Βάλτε το SerpAPI Key σας στα Streamlit Secrets ή απευθείας στη μεταβλητή
-SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "ΤΟ_SERPAPI_KEY_ΣΟΥ")
-
 EXCHANGE_RATES = {"EUR (€)": 1.0, "USD ($)": 0.92, "GBP (£)": 1.17}
 DUTY_RATES = {"Ηλεκτρονικά / Gadgets": 0.0, "Ρούχα & Υποδήματα": 12.0, "Αξεσουάρ / Κοσμήματα": 4.0, "Γενικά Εμπορεύματα": 3.5}
 
@@ -57,77 +53,135 @@ st.header("01 // SEARCH STORES")
 
 search_query = st.text_input("QUERY TARGET:", value="ps5")
 
-def get_live_prices(query):
-    """Κλήση στο SerpAPI για λήψη πραγματικών χαμηλότερων τιμών ανά κατάστημα"""
-    stores_data = {
-        "Skroutz": {"region": "🇬🇷 GR", "currency": "EUR (€)", "eu": True, "link": f"https://www.skroutz.gr/search?keyphrase={urllib.parse.quote(query)}", "price": None},
-        "BestPrice": {"region": "🇬🇷 GR", "currency": "EUR (€)", "eu": True, "link": f"https://www.bestprice.gr/search?q={urllib.parse.quote(query)}", "price": None},
-        "Amazon DE": {"region": "🇪🇺 DE", "currency": "EUR (€)", "eu": True, "link": f"https://www.amazon.de/s?k={urllib.parse.quote(query)}", "price": None},
-        "Amazon US": {"region": "🇺🇸 US", "currency": "USD ($)", "eu": False, "link": f"https://www.amazon.com/s?k={urllib.parse.quote(query)}", "price": None},
-        "eBay Global": {"region": "🌐 GLOBAL", "currency": "USD ($)", "eu": False, "link": f"https://www.ebay.com/sch/i.html?_nkw={urllib.parse.quote(query)}", "price": None},
-        "AliExpress": {"region": "🇨🇳 CN", "currency": "USD ($)", "eu": False, "link": f"https://www.aliexpress.com/wholesale?SearchText={urllib.parse.quote(query)}", "price": None},
-    }
+def make_link(store_type, q, domain=""):
+    quoted = urllib.parse.quote(q)
+    if store_type == "skroutz": return f"https://www.skroutz.gr/search?keyphrase={quoted}"
+    if store_type == "bestprice": return f"https://www.bestprice.gr/search?q={quoted}"
+    if store_type == "public": return f"https://www.public.gr/search?q={quoted}"
+    if store_type == "plaisio": return f"https://www.plaisio.gr/search?q={quoted}"
+    if store_type == "shopflix": return f"https://shopflix.gr/search/?q={quoted}"
+    if store_type == "kotsovolos": return f"https://www.kotsovolos.gr/site/search.jsp?q={quoted}"
+    if store_type == "e-shop": return f"https://www.e-shop.gr/search_main.phtml?table=PER&q={quoted}"
+    if store_type == "germanos": return f"https://www.germanos.gr/search?q={quoted}"
     
-    if SERPAPI_KEY and SERPAPI_KEY != "ΤΟ_SERPAPI_KEY_ΣΟΥ":
-        try:
-            url = f"https://serpapi.com/search.json?engine=google_shopping&q={urllib.parse.quote(query)}&api_key={SERPAPI_KEY}"
-            resp = requests.get(url, timeout=10).json()
-            results = resp.get("shopping_results", [])
+    if store_type == "amazon": return f"https://www.amazon.{domain}/s?k={quoted}"
+    if store_type == "ebay": return f"https://www.ebay.{domain}/sch/i.html?_nkw={quoted}"
+    if store_type == "google_shopping": return f"https://www.google.com/search?tbm=shop&q={quoted}"
+    if store_type == "idealo": return f"https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q={quoted}"
+    if store_type == "computeruniverse": return f"https://www.computeruniverse.net/en/search?q={quoted}"
+    if store_type == "caseking": return f"https://www.caseking.de/search?sSearch={quoted}"
+    if store_type == "fnac": return f"https://www.fnac.com/ia1/search?query={quoted}"
+    if store_type == "otto": return f"https://www.otto.de/suche/{quoted}/"
+    if store_type == "cdiscount": return f"https://www.cdiscount.com/search/10/{quoted}.html"
+    
+    if store_type == "aliexpress": return f"https://www.aliexpress.com/wholesale?SearchText={quoted}"
+    if store_type == "banggood": return f"https://www.banggood.com/search/{quoted}.html"
+    if store_type == "dhgate": return f"https://www.dhgate.com/wholesale/search.do?act=search&sus=&searchkey={quoted}"
+    if store_type == "walmart": return f"https://www.walmart.com/search?q={quoted}"
+    if store_type == "target": return f"https://www.target.com/s?searchTerm={quoted}"
+    if store_type == "bestbuy": return f"https://www.bestbuy.com/site/searchpage.jsp?st={quoted}"
+    if store_type == "newegg": return f"https://www.newegg.com/p/pl?d={quoted}"
+    if store_type == "bhphoto": return f"https://www.bhphotovideo.com/c/search?Ntt={quoted}"
+    
+    # Fallback search via Google
+    return f"https://www.google.com/search?q=site:{domain}+{quoted}"
+
+if st.button("🔍 RUN EXTENDED GLOBAL SEARCH"):
+    q = search_query
+    
+    st.session_state['all_results'] = [
+        # --- ΕΛΛΑΔΑ (🇬🇷) ---
+        {"store": "Skroutz", "region": "🇬🇷 GR", "currency": "EUR (€)", "eu": True, "link": make_link("skroutz", q)},
+        {"store": "BestPrice", "region": "🇬🇷 GR", "currency": "EUR (€)", "eu": True, "link": make_link("bestprice", q)},
+        {"store": "Public", "region": "🇬🇷 GR", "currency": "EUR (€)", "eu": True, "link": make_link("public", q)},
+        {"store": "Plaisio", "region": "🇬🇷 GR", "currency": "EUR (€)", "eu": True, "link": make_link("plaisio", q)},
+        {"store": "Shopflix", "region": "🇬🇷 GR", "currency": "EUR (€)", "eu": True, "link": make_link("shopflix", q)},
+        {"store": "Kotsovolos", "region": "🇬🇷 GR", "currency": "EUR (€)", "eu": True, "link": make_link("kotsovolos", q)},
+        {"store": "E-Shop.gr", "region": "🇬🇷 GR", "currency": "EUR (€)", "eu": True, "link": make_link("e-shop", q)},
+        {"store": "Germanos", "region": "🇬🇷 GR", "currency": "EUR (€)", "eu": True, "link": make_link("germanos", q)},
+        
+        # --- ΕΥΡΩΠΑΪΚΗ ΕΝΩΣΗ (🇪🇺) ---
+        {"store": "Amazon DE", "region": "🇪🇺 DE", "currency": "EUR (€)", "eu": True, "link": make_link("amazon", q, "de")},
+        {"store": "Amazon ES", "region": "🇪🇺 ES", "currency": "EUR (€)", "eu": True, "link": make_link("amazon", q, "es")},
+        {"store": "Amazon IT", "region": "🇪🇺 IT", "currency": "EUR (€)", "eu": True, "link": make_link("amazon", q, "it")},
+        {"store": "Amazon FR", "region": "🇪🇺 FR", "currency": "EUR (€)", "eu": True, "link": make_link("amazon", q, "fr")},
+        {"store": "Amazon NL", "region": "🇪🇺 NL", "currency": "EUR (€)", "eu": True, "link": make_link("amazon", q, "nl")},
+        {"store": "Idealo DE", "region": "🇪🇺 DE", "currency": "EUR (€)", "eu": True, "link": make_link("idealo", q)},
+        {"store": "Computeruniverse", "region": "🇪🇺 DE", "currency": "EUR (€)", "eu": True, "link": make_link("computeruniverse", q)},
+        {"store": "Caseking DE", "region": "🇪🇺 DE", "currency": "EUR (€)", "eu": True, "link": make_link("caseking", q)},
+        {"store": "Fnac FR", "region": "🇪🇺 FR", "currency": "EUR (€)", "eu": True, "link": make_link("fnac", q)},
+        {"store": "Otto DE", "region": "🇪🇺 DE", "currency": "EUR (€)", "eu": True, "link": make_link("otto", q)},
+        {"store": "Cdiscount FR", "region": "🇪🇺 FR", "currency": "EUR (€)", "eu": True, "link": make_link("cdiscount", q)},
+
+        # --- ΕΚΤΟΣ Ε.Ε. (🇺🇸 / 🇬🇧 / 🇨🇳 / GLOBAL) ---
+        {"store": "Google Shopping", "region": "🌐 GLOBAL", "currency": "USD ($)", "eu": False, "link": make_link("google_shopping", q)},
+        {"store": "eBay Global", "region": "🌐 GLOBAL", "currency": "USD ($)", "eu": False, "link": make_link("ebay", q, "com")},
+        {"store": "eBay UK", "region": "🇬🇧 UK", "currency": "GBP (£)", "eu": False, "link": make_link("ebay", q, "co.uk")},
+        {"store": "Amazon US", "region": "🇺🇸 US", "currency": "USD ($)", "eu": False, "link": make_link("amazon", q, "com")},
+        {"store": "Amazon UK", "region": "🇬🇧 UK", "currency": "GBP (£)", "eu": False, "link": make_link("amazon", q, "co.uk")},
+        {"store": "AliExpress", "region": "🇨🇳 CN", "currency": "USD ($)", "eu": False, "link": make_link("aliexpress", q)},
+        {"store": "Banggood", "region": "🇨🇳 CN", "currency": "USD ($)", "eu": False, "link": make_link("banggood", q)},
+        {"store": "DHgate", "region": "🇨🇳 CN", "currency": "USD ($)", "eu": False, "link": make_link("dhgate", q)},
+        {"store": "Walmart US", "region": "🇺🇸 US", "currency": "USD ($)", "eu": False, "link": make_link("walmart", q)},
+        {"store": "Target US", "region": "🇺🇸 US", "currency": "USD ($)", "eu": False, "link": make_link("target", q)},
+        {"store": "Best Buy US", "region": "🇺🇸 US", "currency": "USD ($)", "eu": False, "link": make_link("bestbuy", q)},
+        {"store": "Newegg US", "region": "🇺🇸 US", "currency": "USD ($)", "eu": False, "link": make_link("newegg", q)},
+        {"store": "B&H Photo US", "region": "🇺🇸 US", "currency": "USD ($)", "eu": False, "link": make_link("bhphoto", q)}
+    ]
+
+# Εμφάνιση Αποτελεσμάτων σε Tabs για εύκολη πλοήγηση
+if 'all_results' in st.session_state:
+    st.subheader(f"DATA MATRIX FOR: '{search_query.upper()}' ({len(st.session_state['all_results'])} STORES FOUND)")
+
+    tab_gr, tab_eu, tab_global = st.tabs(["🇬🇷 ΕΛΛΑΔΑ (8)", "🇪🇺 ΕΥΡΩΠΗ (11)", "🌐 GLOBAL / USA / CHINA (13)"])
+
+    def display_store_table(results_subset, key_prefix):
+        h_col1, h_col2, h_col3, h_col4, h_col5 = st.columns([2, 1.2, 1.5, 1.5, 1.2])
+        h_col1.markdown("**STORE**")
+        h_col2.markdown("**REGION**")
+        h_col3.markdown("**TARGET LINK**")
+        h_col4.markdown("**ENTER PRICE**")
+        h_col5.markdown("**ACTION**")
+        st.markdown("---")
+
+        for idx, item in enumerate(results_subset):
+            col1, col2, col3, col4, col5 = st.columns([2, 1.2, 1.5, 1.5, 1.2])
             
-            # Εντοπισμός χαμηλότερης τιμής ανά κατάστημα
-            for item in results:
-                merchant = item.get("source", "")
-                extracted_price = item.get("extracted_price")
-                if merchant and extracted_price:
-                    for store_name in stores_data:
-                        if store_name.lower() in merchant.lower() and stores_data[store_name]["price"] is None:
-                            stores_data[store_name]["price"] = float(extracted_price)
-        except Exception:
-            pass
+            col1.write(f"🖥️ **{item['store']}**")
+            col2.write(f"`{item['region']}`")
+            col3.markdown(f"[🔗 OPEN SITE]({item['link']})")
+            
+            user_price = col4.number_input(
+                label=f"Price_{key_prefix}_{idx}",
+                min_value=0.0,
+                value=0.0,
+                step=5.0,
+                label_visibility="collapsed",
+                key=f"price_input_{key_prefix}_{idx}"
+            )
+            
+            if col5.button("SELECT", key=f"btn_{key_prefix}_{idx}"):
+                st.session_state['selected_price'] = float(user_price)
+                st.session_state['selected_currency'] = item['currency']
+                st.session_state['selected_eu'] = item['eu']
 
-    return stores_data
+    with tab_gr:
+        gr_items = [x for x in st.session_state['all_results'] if x['region'].startswith("🇬🇷")]
+        display_store_table(gr_items, "gr")
 
-if st.button("🔍 RUN GLOBAL SEARCH"):
-    with st.spinner("FETCHING LIVE PRICES..."):
-        st.session_state['live_results'] = get_live_prices(search_query)
+    with tab_eu:
+        eu_items = [x for x in st.session_state['all_results'] if x['region'].startswith("🇪🇺")]
+        display_store_table(eu_items, "eu")
 
-# Εμφάνιση Λίστας Αποτελεσμάτων
-if 'live_results' in st.session_state:
-    st.subheader(f"DATA MATRIX FOR: '{search_query.upper()}'")
-
-    h_col1, h_col2, h_col3, h_col4, h_col5 = st.columns([2, 1.2, 1.5, 1.5, 1.2])
-    h_col1.markdown("**STORE**")
-    h_col2.markdown("**REGION**")
-    h_col3.markdown("**TARGET LINK**")
-    h_col4.markdown("**LOWEST PRICE**")
-    h_col5.markdown("**ACTION**")
-    st.markdown("---")
-
-    for idx, (store_name, data) in enumerate(st.session_state['live_results'].items()):
-        col1, col2, col3, col4, col5 = st.columns([2, 1.2, 1.5, 1.5, 1.2])
-        
-        col1.write(f"🖥️ **{store_name}**")
-        col2.write(f"`{data['region']}`")
-        col3.markdown(f"[🔗 OPEN SITE]({data['link']})")
-        
-        # Αν υπάρχει τιμή εμφανίζεται, αλλιώς εμφανίζεται παύλα (-)
-        if data['price'] is not None:
-            price_display = f"{data['price']:.2f} {data['currency']}"
-            col4.markdown(f"**`{price_display}`**")
-        else:
-            col4.markdown("**`-`**")
-        
-        if col5.button("SELECT", key=f"btn_ext_{idx}"):
-            if data['price'] is not None:
-                st.session_state['selected_price'] = float(data['price'])
-            st.session_state['selected_currency'] = data['currency']
-            st.session_state['selected_eu'] = data['eu']
+    with tab_global:
+        global_items = [x for x in st.session_state['all_results'] if not x['region'].startswith("🇬🇷") and not x['region'].startswith("🇪🇺")]
+        display_store_table(global_items, "global")
 
 # 4. ΥΠΟΛΟΓΙΣΜΟΣ ΔΑΣΜΩΝ & ΦΠΑ
 st.markdown("---")
 st.header("02 // DUTY & VAT CALCULATOR")
 
-default_price = st.session_state.get('selected_price', 100.0)
+default_price = st.session_state.get('selected_price', 0.0)
 default_currency = st.session_state.get('selected_currency', "USD ($)")
 default_eu = st.session_state.get('selected_eu', False)
 
